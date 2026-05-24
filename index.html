@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Obsidian Drop</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#7c3aed">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <script src="https://unpkg.com/dropbox/dist/Dropbox-sdk.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    /* ── リセット・変数 ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #1e1e1e;
+      --bg-surface: #252525;
+      --bg-sidebar: #1a1a2e;
+      --border: #3a3a3a;
+      --text: #d4d4d4;
+      --text-muted: #888;
+      --accent: #7c3aed;
+      --accent-hover: #6d28d9;
+      --danger: #dc2626;
+      --header-h: 48px;
+      --toolbar-h: 40px;
+      --sidebar-w: 280px;
+      --toast-duration: 3s;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      overflow: hidden;
+    }
+
+    /* ── 認証画面 ── */
+    #auth-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 24px;
+    }
+
+    #auth-screen h1 {
+      font-size: 24px;
+      color: var(--accent);
+    }
+
+    #auth-screen p {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    #auth-btn {
+      padding: 12px 32px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #auth-btn:hover { background: var(--accent-hover); }
+
+    /* ── メイン画面 ── */
+    #main-screen {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    /* ── ヘッダー ── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: var(--header-h);
+      padding: 0 12px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #menu-btn {
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    #menu-btn:hover { background: var(--border); }
+
+    #filename {
+      flex: 1;
+      font-size: 13px;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #save-status {
+      font-size: 11px;
+      color: var(--text-muted);
+      min-width: 48px;
+      text-align: right;
+    }
+
+    /* ── オーバーレイ（ドロワー背景） ── */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 10;
+    }
+
+    /* ── サイドバー（ドロワー） ── */
+    #sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: var(--sidebar-w);
+      height: 100%;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+    }
+
+    #sidebar.open { transform: translateX(0); }
+
+    #sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #sidebar-header span {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    #sidebar-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .icon-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+
+    .icon-btn:hover { background: var(--border); color: var(--text); }
+
+    #file-tree {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    /* ファイルツリーアイテム */
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin: 1px 4px;
+      font-size: 13px;
+      user-select: none;
+    }
+
+    .tree-item:hover { background: var(--border); }
+    .tree-item.active { background: var(--accent); color: #fff; }
+
+    .tree-item .icon { font-size: 12px; color: var(--text-muted); width: 14px; }
+    .tree-item.active .icon { color: rgba(255,255,255,0.7); }
+    .tree-item .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .tree-children { padding-left: 16px; }
+
+    /* ── エディタエリア ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: var(--toolbar-h);
+      padding: 0 12px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #toggle-preview {
+      padding: 4px 12px;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    #toggle-preview:hover { border-color: var(--accent); color: var(--accent); }
+    #toggle-preview.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    #editor {
+      flex: 1;
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: none;
+      padding: 16px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.7;
+      resize: none;
+      outline: none;
+    }
+
+    #preview {
+      flex: 1;
+      padding: 16px 20px;
+      overflow-y: auto;
+      line-height: 1.7;
+    }
+
+    /* プレビューのMarkdownスタイル */
+    #preview h1, #preview h2, #preview h3 { margin: 1.2em 0 0.6em; color: #e0e0e0; }
+    #preview h1 { font-size: 1.6em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+    #preview h2 { font-size: 1.3em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
+    #preview p { margin: 0.8em 0; }
+    #preview a { color: var(--accent); }
+    #preview code { background: var(--bg-surface); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+    #preview pre { background: var(--bg-surface); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 1em 0; }
+    #preview pre code { background: none; padding: 0; }
+    #preview blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text-muted); margin: 1em 0; }
+    #preview ul, #preview ol { padding-left: 1.5em; margin: 0.8em 0; }
+    #preview li { margin: 0.3em 0; }
+    #preview hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
+    #preview table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    #preview th, #preview td { border: 1px solid var(--border); padding: 6px 12px; }
+    #preview th { background: var(--bg-surface); }
+
+    /* WikiLink badge */
+    .wikilink {
+      display: inline-block;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.85em;
+      color: var(--text-muted);
+    }
+
+    /* ── モーダル ── */
+    #modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #modal {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #modal h3 { font-size: 14px; }
+
+    #modal input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 14px;
+      outline: none;
+      width: 100%;
+    }
+
+    #modal input:focus { border-color: var(--accent); }
+
+    #modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      padding: 6px 16px;
+      border-radius: 4px;
+      border: none;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-danger { background: var(--danger); color: #fff; }
+
+    /* ── トースト通知 ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #333;
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 13px;
+      z-index: 50;
+      transition: transform 0.3s ease;
+      white-space: nowrap;
+    }
+
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.error { background: var(--danger); }
+
+    /* ── ユーティリティ ── */
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- 認証画面 -->
+<div id="auth-screen">
+  <h1>Obsidian Drop</h1>
+  <p>Dropboxに接続してObsidian Vaultを編集</p>
+  <button id="auth-btn">Dropboxでログイン</button>
+</div>
+
+<!-- メイン画面 -->
+<div id="main-screen" hidden>
+
+  <header>
+    <button id="menu-btn" aria-label="メニューを開く">☰</button>
+    <span id="filename">ファイルを選択してください</span>
+    <span id="save-status"></span>
+  </header>
+
+  <!-- ドロワーオーバーレイ -->
+  <div id="overlay" hidden></div>
+
+  <!-- サイドバー -->
+  <aside id="sidebar" aria-label="ファイルツリー">
+    <div id="sidebar-header">
+      <span>Obsidian Vault</span>
+      <div id="sidebar-actions">
+        <button class="icon-btn" id="new-file-btn" title="新規ファイル">＋📄</button>
+        <button class="icon-btn" id="new-folder-btn" title="新規フォルダ">＋📁</button>
+      </div>
+    </div>
+    <div id="file-tree"></div>
+  </aside>
+
+  <!-- エディタ -->
+  <main>
+    <div id="toolbar">
+      <button id="toggle-preview">プレビュー</button>
+    </div>
+    <textarea id="editor" placeholder="ファイルを選択してください" spellcheck="false"></textarea>
+    <div id="preview" hidden></div>
+  </main>
+
+</div>
+
+<!-- モーダル（新規作成・削除確認） -->
+<div id="modal-overlay" hidden>
+  <div id="modal">
+    <h3 id="modal-title"></h3>
+    <input id="modal-input" type="text" autocomplete="off">
+    <div id="modal-actions">
+      <button class="btn btn-secondary" id="modal-cancel">キャンセル</button>
+      <button class="btn btn-primary" id="modal-ok">作成</button>
+    </div>
+  </div>
+</div>
+
+<!-- トースト通知 -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// Phase 2: 認証
+// ═══════════════════════════════════════════════
+
+const CLIENT_ID = '';  // Dropbox App Console で取得したApp keyを設定
+
+// ═══════════════════════════════════════════════
+// Phase 3: サイドバー（ファイルツリー）
+// ═══════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════
+// Phase 4: エディタ
+// ═══════════════════════════════════════════════
+
+// ── Service Worker 登録 ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
+</script>
+
+</body>
+</html>
