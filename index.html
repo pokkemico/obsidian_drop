@@ -639,13 +639,315 @@ authBtn.addEventListener('click', startAuth);
 // Phase 3: サイドバー（ファイルツリー）
 // ═══════════════════════════════════════════════
 
-async function loadFileTree() {
-  // Phase 3 で実装
+// ── ドロワー開閉 ──
+function openSidebar() {
+  sidebar.classList.add('open');
+  overlay.hidden = false;
 }
+
+function closeSidebar() {
+  sidebar.classList.remove('open');
+  overlay.hidden = true;
+}
+
+menuBtn.addEventListener('click', openSidebar);
+overlay.addEventListener('click', closeSidebar);
+
+// ── Dropbox からフォルダ以下を全件取得 ──
+async function listAllEntries(path) {
+  const entries = [];
+  let res = await dbx.filesListFolder({ path, recursive: false });
+  entries.push(...res.result.entries);
+  while (res.result.has_more) {
+    res = await dbx.filesListFolderContinue({ cursor: res.result.cursor });
+    entries.push(...res.result.entries);
+  }
+  return entries;
+}
+
+// ── ツリーデータ構造を構築 ──
+function buildTree(entries) {
+  const folders = {};
+  const children = {};
+
+  for (const e of entries) {
+    const parent = e.path_lower.substring(0, e.path_lower.lastIndexOf('/')) || '/';
+    if (!children[parent]) children[parent] = [];
+    if (e['.tag'] === 'folder') {
+      folders[e.path_lower] = e;
+      if (!children[e.path_lower]) children[e.path_lower] = [];
+    }
+    if (e['.tag'] === 'file' && e.name.endsWith('.md')) {
+      children[parent].push(e);
+    } else if (e['.tag'] === 'folder') {
+      children[parent].push(e);
+    }
+  }
+  return children;
+}
+
+// ── ツリーをDOMに描画 ──
+let treeData = {};
+let openFolders = new Set();
+
+function renderTree(parentPath, container, depth = 0) {
+  const items = treeData[parentPath] || [];
+  items.sort((a, b) => {
+    // フォルダ優先、その後アルファベット順
+    if (a['.tag'] !== b['.tag']) return a['.tag'] === 'folder' ? -1 : 1;
+    return a.name.localeCompare(b.name, 'ja');
+  });
+
+  for (const item of items) {
+    const el = document.createElement('div');
+    el.className = 'tree-item';
+    el.style.paddingLeft = `${12 + depth * 14}px`;
+
+    if (item['.tag'] === 'folder') {
+      const isOpen = openFolders.has(item.path_lower);
+      el.innerHTML = `<span class="icon">${isOpen ? '▾' : '▸'}</span><span class="label">${item.name}</span>`;
+      el.addEventListener('click', () => toggleFolder(item.path_lower, el, container, depth));
+
+      const childContainer = document.createElement('div');
+      childContainer.className = 'tree-children';
+      childContainer.hidden = !isOpen;
+
+      container.appendChild(el);
+      container.appendChild(childContainer);
+
+      if (isOpen) renderTree(item.path_lower, childContainer, depth + 1);
+    } else {
+      el.innerHTML = `<span class="icon">📄</span><span class="label">${item.name}</span>`;
+      el.dataset.path = item.path_display;
+      el.addEventListener('click', () => selectFile(item.path_display, el));
+      container.appendChild(el);
+    }
+  }
+}
+
+function toggleFolder(path, el, container, depth) {
+  const childContainer = el.nextElementSibling;
+  if (openFolders.has(path)) {
+    openFolders.delete(path);
+    el.querySelector('.icon').textContent = '▸';
+    childContainer.hidden = true;
+    childContainer.innerHTML = '';
+  } else {
+    openFolders.add(path);
+    el.querySelector('.icon').textContent = '▾';
+    childContainer.hidden = false;
+    renderTree(path, childContainer, depth + 1);
+  }
+}
+
+// ── ファイルツリー読み込み ──
+async function loadFileTree() {
+  fileTree.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:12px">読み込み中…</div>';
+  try {
+    const entries = await listAllEntries(VAULT_ROOT);
+    const vaultLower = VAULT_ROOT.toLowerCase();
+    treeData = buildTree(entries.map(e => ({
+      ...e,
+      path_lower: e.path_lower.replace(vaultLower, '') || '/',
+      path_display: e.path_display,
+    })));
+    fileTree.innerHTML = '';
+    renderTree('/', fileTree);
+  } catch (e) {
+    fileTree.innerHTML = `<div style="padding:12px;color:var(--danger);font-size:12px">${e.message}</div>`;
+  }
+}
+
+// ── ファイル選択 ──
+let currentPath = null;
+let currentEl   = null;
+
+async function selectFile(path, el) {
+  if (currentPath === path) { closeSidebar(); return; }
+
+  if (isDirty) {
+    const ok = await confirmUnsaved();
+    if (!ok) return;
+  }
+
+  if (currentEl) currentEl.classList.remove('active');
+  el.classList.add('active');
+  currentEl   = el;
+  currentPath = path;
+  filenameEl.textContent = path.split('/').pop();
+  closeSidebar();
+
+  editor.value = '';
+  editor.placeholder = '読み込み中…';
+  try {
+    const res = await dbx.filesDownload({ path });
+    const text = await res.result.fileBlob.text();
+    editor.value = text;
+    editor.placeholder = '';
+    if (!preview.hidden) renderPreview();
+  } catch (e) {
+    showToast('ファイルの読み込みに失敗しました', true);
+  }
+}
+
+// ── 新規ファイル作成 ──
+newFileBtn.addEventListener('click', () => {
+  showModal('新規ファイル', 'ファイル名', async (name) => {
+    if (!name) return;
+    const filename = name.endsWith('.md') ? name : `${name}.md`;
+    const path = `${VAULT_ROOT}/${filename}`;
+    try {
+      await dbx.filesUpload({ path, contents: '', mode: 'add', autorename: true });
+      await loadFileTree();
+      showToast(`${filename} を作成しました`);
+    } catch (e) {
+      showToast('作成に失敗しました', true);
+    }
+  });
+});
+
+// ── 新規フォルダ作成 ──
+newFolderBtn.addEventListener('click', () => {
+  showModal('新規フォルダ', 'フォルダ名', async (name) => {
+    if (!name) return;
+    try {
+      await dbx.filesCreateFolderV2({ path: `${VAULT_ROOT}/${name}`, autorename: true });
+      await loadFileTree();
+      showToast(`${name} を作成しました`);
+    } catch (e) {
+      showToast('作成に失敗しました', true);
+    }
+  });
+});
+
+// ── モーダル ──
+let modalCallback = null;
+
+function showModal(title, placeholder, callback) {
+  modalTitle.textContent    = title;
+  modalInput.placeholder    = placeholder;
+  modalInput.value          = '';
+  modalOverlay.hidden       = false;
+  modalCallback             = callback;
+  setTimeout(() => modalInput.focus(), 50);
+}
+
+function closeModal() {
+  modalOverlay.hidden = true;
+  modalCallback       = null;
+}
+
+modalCancel.addEventListener('click', closeModal);
+modalOk.addEventListener('click', () => {
+  if (modalCallback) modalCallback(modalInput.value.trim());
+  closeModal();
+});
+modalInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { modalOk.click(); }
+  if (e.key === 'Escape') { closeModal(); }
+});
 
 // ═══════════════════════════════════════════════
 // Phase 4: エディタ
 // ═══════════════════════════════════════════════
+
+// ── プレビュー（WikiLink badge対応） ──
+const wikilinkRenderer = {
+  name: 'wikilink',
+  level: 'inline',
+  start: (src) => src.indexOf('[['),
+  tokenizer(src) {
+    const match = src.match(/^\[\[([^\]]+)\]\]/);
+    if (match) return { type: 'wikilink', raw: match[0], text: match[1] };
+  },
+  renderer: (token) => `<span class="wikilink">${token.text}</span>`,
+};
+marked.use({ extensions: [wikilinkRenderer] });
+
+function renderPreview() {
+  preview.innerHTML = marked.parse(editor.value);
+}
+
+// ── 編集/プレビュー切り替え ──
+togglePreview.addEventListener('click', () => {
+  const isPreview = !preview.hidden;
+  if (isPreview) {
+    preview.hidden  = true;
+    editor.hidden   = false;
+    togglePreview.classList.remove('active');
+    togglePreview.textContent = 'プレビュー';
+  } else {
+    renderPreview();
+    editor.hidden   = true;
+    preview.hidden  = false;
+    togglePreview.classList.add('active');
+    togglePreview.textContent = '編集';
+  }
+});
+
+// ── 自動保存（2秒debounce） ──
+let isDirty    = false;
+let saveTimer  = null;
+
+async function saveFile() {
+  if (!currentPath || !isDirty) return;
+  saveStatusEl.textContent = '保存中…';
+  try {
+    const content = new TextEncoder().encode(editor.value);
+    await dbx.filesUpload({
+      path:     currentPath,
+      contents: content,
+      mode:     { '.tag': 'overwrite' },
+    });
+    isDirty = false;
+    saveStatusEl.textContent = '保存済み';
+    setTimeout(() => { if (!isDirty) saveStatusEl.textContent = ''; }, 2000);
+  } catch (e) {
+    saveStatusEl.textContent = '';
+    showToast('保存に失敗しました', true);
+  }
+}
+
+editor.addEventListener('input', () => {
+  if (!currentPath) return;
+  isDirty = true;
+  saveStatusEl.textContent = '編集中…';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveFile, 2000);
+});
+
+// ── 未保存変更の確認 ──
+async function confirmUnsaved() {
+  return new Promise((resolve) => {
+    showModal('未保存の変更があります', '', null);
+    modalOk.textContent = '保存して切り替え';
+    modalOk.className   = 'btn btn-primary';
+
+    const skipBtn = document.createElement('button');
+    skipBtn.textContent = '保存せず切り替え';
+    skipBtn.className   = 'btn btn-danger';
+    modalOk.before(skipBtn);
+
+    const cleanup = () => {
+      skipBtn.remove();
+      modalOk.textContent = '作成';
+      closeModal();
+    };
+
+    skipBtn.addEventListener('click', () => { isDirty = false; cleanup(); resolve(true); });
+    modalOk.addEventListener('click', async () => {
+      await saveFile();
+      cleanup();
+      resolve(true);
+    }, { once: true });
+    modalCancel.addEventListener('click', () => { cleanup(); resolve(false); }, { once: true });
+  });
+}
+
+// ── ページ離脱警告 ──
+window.addEventListener('beforeunload', (e) => {
+  if (isDirty) { e.preventDefault(); e.returnValue = ''; }
+});
 
 // ── トースト通知 ──
 let toastTimer = null;
