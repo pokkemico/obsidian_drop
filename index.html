@@ -430,23 +430,239 @@
 
 <script>
 // ═══════════════════════════════════════════════
+// 定数
+// ═══════════════════════════════════════════════
+
+const CLIENT_ID   = 'yzgitq8dckav2q8';
+const REDIRECT_URI = 'https://pokkemico.github.io/obsidian_drop/';
+const VAULT_ROOT   = '/Obsidian_Vault';
+
+const KEYS = {
+  ACCESS_TOKEN:  'dbx_access_token',
+  REFRESH_TOKEN: 'dbx_refresh_token',
+  EXPIRES_AT:    'dbx_expires_at',
+  CODE_VERIFIER: 'dbx_code_verifier',
+};
+
+// ═══════════════════════════════════════════════
+// DOM
+// ═══════════════════════════════════════════════
+
+const authScreen    = document.getElementById('auth-screen');
+const mainScreen    = document.getElementById('main-screen');
+const authBtn       = document.getElementById('auth-btn');
+const menuBtn       = document.getElementById('menu-btn');
+const overlay       = document.getElementById('overlay');
+const sidebar       = document.getElementById('sidebar');
+const filenameEl    = document.getElementById('filename');
+const saveStatusEl  = document.getElementById('save-status');
+const editor        = document.getElementById('editor');
+const preview       = document.getElementById('preview');
+const togglePreview = document.getElementById('toggle-preview');
+const fileTree      = document.getElementById('file-tree');
+const newFileBtn    = document.getElementById('new-file-btn');
+const newFolderBtn  = document.getElementById('new-folder-btn');
+const modalOverlay  = document.getElementById('modal-overlay');
+const modalTitle    = document.getElementById('modal-title');
+const modalInput    = document.getElementById('modal-input');
+const modalCancel   = document.getElementById('modal-cancel');
+const modalOk       = document.getElementById('modal-ok');
+const toastEl       = document.getElementById('toast');
+
+// ── Dropboxクライアント ──
+let dbx = null;
+
+// ═══════════════════════════════════════════════
 // Phase 2: 認証
 // ═══════════════════════════════════════════════
 
-const CLIENT_ID = '';  // Dropbox App Console で取得したApp keyを設定
+// ── トークン管理 ──
+function saveTokens(accessToken, refreshToken, expiresIn) {
+  localStorage.setItem(KEYS.ACCESS_TOKEN, accessToken);
+  if (refreshToken) localStorage.setItem(KEYS.REFRESH_TOKEN, refreshToken);
+  // 1分早めに失効扱いにしてリフレッシュを先行させる
+  const expiresAt = Date.now() + (expiresIn - 60) * 1000;
+  localStorage.setItem(KEYS.EXPIRES_AT, String(expiresAt));
+}
+
+function loadTokens() {
+  return {
+    accessToken:  localStorage.getItem(KEYS.ACCESS_TOKEN),
+    refreshToken: localStorage.getItem(KEYS.REFRESH_TOKEN),
+    expiresAt:    parseInt(localStorage.getItem(KEYS.EXPIRES_AT) || '0'),
+  };
+}
+
+function clearTokens() {
+  Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+}
+
+function isTokenFresh(tokens) {
+  return tokens.accessToken && Date.now() < tokens.expiresAt;
+}
+
+// ── アクセストークン更新 ──
+async function refreshAccessToken(refreshToken) {
+  const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type:    'refresh_token',
+      refresh_token: refreshToken,
+      client_id:     CLIENT_ID,
+    }),
+  });
+  if (!res.ok) throw new Error('トークンのリフレッシュに失敗しました');
+  const data = await res.json();
+  saveTokens(data.access_token, data.refresh_token, data.expires_in);
+  return data.access_token;
+}
+
+// ── 有効なアクセストークンを取得（期限切れなら自動リフレッシュ） ──
+async function getValidAccessToken() {
+  const tokens = loadTokens();
+  if (!tokens.accessToken) throw new Error('未認証');
+  if (isTokenFresh(tokens)) return tokens.accessToken;
+  if (tokens.refreshToken) return await refreshAccessToken(tokens.refreshToken);
+  throw new Error('再認証が必要です');
+}
+
+// ── PKCE ヘルパー ──
+function generateCodeVerifier() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function generateCodeChallenge(verifier) {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// ── 認証開始（Dropboxへリダイレクト） ──
+async function startAuth() {
+  const verifier   = generateCodeVerifier();
+  const challenge  = await generateCodeChallenge(verifier);
+  localStorage.setItem(KEYS.CODE_VERIFIER, verifier);
+
+  const params = new URLSearchParams({
+    client_id:             CLIENT_ID,
+    response_type:         'code',
+    redirect_uri:          REDIRECT_URI,
+    code_challenge:        challenge,
+    code_challenge_method: 'S256',
+    token_access_type:     'offline',
+  });
+  window.location.href = `https://www.dropbox.com/oauth2/authorize?${params}`;
+}
+
+// ── コールバック処理（code → token） ──
+async function handleCallback(code) {
+  const verifier = localStorage.getItem(KEYS.CODE_VERIFIER);
+  if (!verifier) throw new Error('認証セッションが無効です。再度ログインしてください');
+
+  const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      grant_type:    'authorization_code',
+      client_id:     CLIENT_ID,
+      redirect_uri:  REDIRECT_URI,
+      code_verifier: verifier,
+    }),
+  });
+  if (!res.ok) throw new Error('認証に失敗しました');
+  const data = await res.json();
+  saveTokens(data.access_token, data.refresh_token, data.expires_in);
+  localStorage.removeItem(KEYS.CODE_VERIFIER);
+  window.history.replaceState({}, '', REDIRECT_URI);
+  return data.access_token;
+}
+
+// ── Dropboxクライアント生成 ──
+function createDbxClient(accessToken) {
+  dbx = new Dropbox.Dropbox({ accessToken });
+}
+
+// ── 画面切り替え ──
+function showAuthScreen() {
+  authScreen.hidden = false;
+  mainScreen.hidden = true;
+}
+
+function showMainScreen() {
+  authScreen.hidden = true;
+  mainScreen.hidden = false;
+  loadFileTree();
+}
+
+// ── 起動処理 ──
+async function boot() {
+  const params = new URLSearchParams(window.location.search);
+  const code   = params.get('code');
+
+  if (code) {
+    try {
+      const accessToken = await handleCallback(code);
+      createDbxClient(accessToken);
+      showMainScreen();
+    } catch (e) {
+      showToast(e.message, true);
+      showAuthScreen();
+    }
+    return;
+  }
+
+  const tokens = loadTokens();
+  if (tokens.accessToken) {
+    try {
+      const accessToken = await getValidAccessToken();
+      createDbxClient(accessToken);
+      showMainScreen();
+    } catch {
+      clearTokens();
+      showAuthScreen();
+    }
+    return;
+  }
+
+  showAuthScreen();
+}
+
+authBtn.addEventListener('click', startAuth);
 
 // ═══════════════════════════════════════════════
 // Phase 3: サイドバー（ファイルツリー）
 // ═══════════════════════════════════════════════
 
+async function loadFileTree() {
+  // Phase 3 で実装
+}
+
 // ═══════════════════════════════════════════════
 // Phase 4: エディタ
 // ═══════════════════════════════════════════════
+
+// ── トースト通知 ──
+let toastTimer = null;
+function showToast(message, isError = false) {
+  toastEl.textContent = message;
+  toastEl.className   = 'show' + (isError ? ' error' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.className = ''; }, 3000);
+}
 
 // ── Service Worker 登録 ──
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js');
 }
+
+// ── 起動 ──
+boot();
 </script>
 
 </body>
