@@ -365,6 +365,27 @@
     #toast.show { transform: translateX(-50%) translateY(0); }
     #toast.error { background: var(--danger); }
 
+    /* ── コンテキストメニュー ── */
+    #context-menu {
+      position: fixed;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      z-index: 40;
+      overflow: hidden;
+      min-width: 140px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+
+    .context-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .context-item:hover { background: var(--border); }
+    .context-item.danger { color: var(--danger); }
+
     /* ── ユーティリティ ── */
     [hidden] { display: none !important; }
   </style>
@@ -424,6 +445,9 @@
     </div>
   </div>
 </div>
+
+<!-- コンテキストメニュー -->
+<div id="context-menu" hidden></div>
 
 <!-- トースト通知 -->
 <div id="toast"></div>
@@ -640,9 +664,13 @@ authBtn.addEventListener('click', startAuth);
 // ═══════════════════════════════════════════════
 
 // ── ドロワー開閉 ──
+let sidebarJustOpened = false;
+
 function openSidebar() {
   sidebar.classList.add('open');
   overlay.hidden = false;
+  sidebarJustOpened = true;
+  setTimeout(() => { sidebarJustOpened = false; }, 300);
 }
 
 function closeSidebar() {
@@ -651,12 +679,14 @@ function closeSidebar() {
 }
 
 menuBtn.addEventListener('click', openSidebar);
-overlay.addEventListener('click', closeSidebar);
+overlay.addEventListener('click', () => {
+  if (!sidebarJustOpened) closeSidebar();
+});
 
-// ── Dropbox からフォルダ以下を全件取得 ──
+// ── Dropbox からフォルダ以下を全件取得（再帰） ──
 async function listAllEntries(path) {
   const entries = [];
-  let res = await dbx.filesListFolder({ path, recursive: false });
+  let res = await dbx.filesListFolder({ path, recursive: true });
   entries.push(...res.result.entries);
   while (res.result.has_more) {
     res = await dbx.filesListFolderContinue({ cursor: res.result.cursor });
@@ -667,19 +697,17 @@ async function listAllEntries(path) {
 
 // ── ツリーデータ構造を構築 ──
 function buildTree(entries) {
-  const folders = {};
-  const children = {};
+  const vaultKey = VAULT_ROOT.toLowerCase();
+  const children = { [vaultKey]: [] };
 
   for (const e of entries) {
-    const parent = e.path_lower.substring(0, e.path_lower.lastIndexOf('/')) || '/';
+    if (e.name.startsWith('.')) continue;
+    const parent = e.path_lower.substring(0, e.path_lower.lastIndexOf('/'));
     if (!children[parent]) children[parent] = [];
     if (e['.tag'] === 'folder') {
-      folders[e.path_lower] = e;
       if (!children[e.path_lower]) children[e.path_lower] = [];
-    }
-    if (e['.tag'] === 'file' && e.name.endsWith('.md')) {
       children[parent].push(e);
-    } else if (e['.tag'] === 'folder') {
+    } else if (e['.tag'] === 'file' && e.name.endsWith('.md')) {
       children[parent].push(e);
     }
   }
@@ -687,13 +715,12 @@ function buildTree(entries) {
 }
 
 // ── ツリーをDOMに描画 ──
-let treeData = {};
+let treeData    = {};
 let openFolders = new Set();
 
 function renderTree(parentPath, container, depth = 0) {
   const items = treeData[parentPath] || [];
   items.sort((a, b) => {
-    // フォルダ優先、その後アルファベット順
     if (a['.tag'] !== b['.tag']) return a['.tag'] === 'folder' ? -1 : 1;
     return a.name.localeCompare(b.name, 'ja');
   });
@@ -706,31 +733,32 @@ function renderTree(parentPath, container, depth = 0) {
     if (item['.tag'] === 'folder') {
       const isOpen = openFolders.has(item.path_lower);
       el.innerHTML = `<span class="icon">${isOpen ? '▾' : '▸'}</span><span class="label">${item.name}</span>`;
-      el.addEventListener('click', () => toggleFolder(item.path_lower, el, container, depth));
 
       const childContainer = document.createElement('div');
       childContainer.className = 'tree-children';
-      childContainer.hidden = !isOpen;
+      childContainer.hidden    = !isOpen;
+
+      el.addEventListener('click', () => toggleFolder(item.path_lower, el, childContainer, depth));
+      addLongPress(el, () => showContextMenu(item, el));
 
       container.appendChild(el);
       container.appendChild(childContainer);
-
       if (isOpen) renderTree(item.path_lower, childContainer, depth + 1);
     } else {
       el.innerHTML = `<span class="icon">📄</span><span class="label">${item.name}</span>`;
       el.dataset.path = item.path_display;
       el.addEventListener('click', () => selectFile(item.path_display, el));
+      addLongPress(el, () => showContextMenu(item, el));
       container.appendChild(el);
     }
   }
 }
 
-function toggleFolder(path, el, container, depth) {
-  const childContainer = el.nextElementSibling;
+function toggleFolder(path, el, childContainer, depth) {
   if (openFolders.has(path)) {
     openFolders.delete(path);
     el.querySelector('.icon').textContent = '▸';
-    childContainer.hidden = true;
+    childContainer.hidden    = true;
     childContainer.innerHTML = '';
   } else {
     openFolders.add(path);
@@ -745,14 +773,9 @@ async function loadFileTree() {
   fileTree.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:12px">読み込み中…</div>';
   try {
     const entries = await listAllEntries(VAULT_ROOT);
-    const vaultLower = VAULT_ROOT.toLowerCase();
-    treeData = buildTree(entries.map(e => ({
-      ...e,
-      path_lower: e.path_lower.replace(vaultLower, '') || '/',
-      path_display: e.path_display,
-    })));
+    treeData = buildTree(entries);
     fileTree.innerHTML = '';
-    renderTree('/', fileTree);
+    renderTree(VAULT_ROOT.toLowerCase(), fileTree);
   } catch (e) {
     fileTree.innerHTML = `<div style="padding:12px;color:var(--danger);font-size:12px">${e.message}</div>`;
   }
@@ -764,12 +787,10 @@ let currentEl   = null;
 
 async function selectFile(path, el) {
   if (currentPath === path) { closeSidebar(); return; }
-
   if (isDirty) {
     const ok = await confirmUnsaved();
     if (!ok) return;
   }
-
   if (currentEl) currentEl.classList.remove('active');
   el.classList.add('active');
   currentEl   = el;
@@ -777,12 +798,12 @@ async function selectFile(path, el) {
   filenameEl.textContent = path.split('/').pop();
   closeSidebar();
 
-  editor.value = '';
+  editor.value       = '';
   editor.placeholder = '読み込み中…';
   try {
-    const res = await dbx.filesDownload({ path });
+    const res  = await dbx.filesDownload({ path });
     const text = await res.result.fileBlob.text();
-    editor.value = text;
+    editor.value       = text;
     editor.placeholder = '';
     if (!preview.hidden) renderPreview();
   } catch (e) {
@@ -790,14 +811,132 @@ async function selectFile(path, el) {
   }
 }
 
+// ── 長押しコンテキストメニュー ──
+function addLongPress(el, callback) {
+  let timer = null;
+  let moved  = false;
+  el.addEventListener('touchstart', (e) => {
+    moved = false;
+    timer = setTimeout(() => { if (!moved) { e.preventDefault(); callback(); } }, 500);
+  }, { passive: true });
+  el.addEventListener('touchmove',   () => { moved = true; clearTimeout(timer); });
+  el.addEventListener('touchend',    () => clearTimeout(timer));
+  el.addEventListener('touchcancel', () => clearTimeout(timer));
+  el.addEventListener('contextmenu', (e) => { e.preventDefault(); callback(); });
+}
+
+// ── コンテキストメニュー ──
+const contextMenu = document.getElementById('context-menu');
+
+function showContextMenu(item, anchorEl) {
+  const rect = anchorEl.getBoundingClientRect();
+  contextMenu.innerHTML = '';
+  contextMenu.hidden    = false;
+
+  const actions = [
+    { label: '名前を変更', fn: () => renameItem(item) },
+    ...(item['.tag'] === 'file' ? [{ label: '移動', fn: () => moveItem(item) }] : []),
+    { label: '削除', fn: () => deleteItem(item), danger: true },
+  ];
+
+  for (const action of actions) {
+    const btn = document.createElement('div');
+    btn.className   = 'context-item' + (action.danger ? ' danger' : '');
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => { hideContextMenu(); action.fn(); });
+    contextMenu.appendChild(btn);
+  }
+
+  const top  = Math.min(rect.bottom + 4, window.innerHeight - 100);
+  const left = Math.min(rect.left, window.innerWidth - 160);
+  contextMenu.style.top  = `${Math.max(top, 8)}px`;
+  contextMenu.style.left = `${Math.max(left, 8)}px`;
+}
+
+function hideContextMenu() { contextMenu.hidden = true; }
+
+document.addEventListener('click', hideContextMenu);
+document.addEventListener('touchstart', (e) => {
+  if (!contextMenu.contains(e.target)) hideContextMenu();
+}, { passive: true });
+
+// ── 名前変更 ──
+async function renameItem(item) {
+  showModal('名前を変更', '新しい名前', async (newName) => {
+    if (!newName) return;
+    const parentPath  = item.path_display.substring(0, item.path_display.lastIndexOf('/'));
+    const newFilename = (item['.tag'] === 'file' && !newName.endsWith('.md'))
+      ? `${newName}.md` : newName;
+    const newPath = `${parentPath}/${newFilename}`;
+    try {
+      await dbx.filesMoveV2({ from_path: item.path_display, to_path: newPath, autorename: true });
+      if (currentPath === item.path_display) {
+        currentPath = newPath;
+        filenameEl.textContent = newFilename;
+      }
+      await loadFileTree();
+      showToast('名前を変更しました');
+    } catch (e) {
+      showToast('名前の変更に失敗しました', true);
+    }
+  });
+  modalInput.value = item.name.replace(/\.md$/, '');
+}
+
+// ── 移動 ──
+async function moveItem(item) {
+  showModal('移動先フォルダ（例: /フォルダ名）', '/ または /フォルダ/サブフォルダ', async (dest) => {
+    if (dest === '') return;
+    const destFull = (dest === '/')
+      ? VAULT_ROOT
+      : `${VAULT_ROOT}${dest.startsWith('/') ? dest : '/' + dest}`;
+    const newPath = `${destFull}/${item.name}`;
+    try {
+      await dbx.filesMoveV2({ from_path: item.path_display, to_path: newPath, autorename: true });
+      if (currentPath === item.path_display) {
+        currentPath = newPath;
+        filenameEl.textContent = item.name;
+      }
+      await loadFileTree();
+      showToast('移動しました');
+    } catch (e) {
+      showToast('移動に失敗しました', true);
+    }
+  });
+}
+
+// ── 削除 ──
+async function deleteItem(item) {
+  modalTitle.textContent = `「${item.name}」を削除しますか？`;
+  modalInput.hidden      = true;
+  modalOk.textContent    = '削除';
+  modalOk.className      = 'btn btn-danger';
+  modalOverlay.hidden    = false;
+  modalOk.onclick = async () => {
+    closeModal();
+    try {
+      await dbx.filesDeleteV2({ path: item.path_display });
+      if (currentPath === item.path_display) {
+        currentPath = null; currentEl = null;
+        editor.value = '';
+        filenameEl.textContent = 'ファイルを選択してください';
+      }
+      await loadFileTree();
+      showToast('削除しました');
+    } catch (e) {
+      showToast('削除に失敗しました', true);
+    }
+  };
+  modalCancel.onclick = closeModal;
+}
+
 // ── 新規ファイル作成 ──
 newFileBtn.addEventListener('click', () => {
   showModal('新規ファイル', 'ファイル名', async (name) => {
     if (!name) return;
     const filename = name.endsWith('.md') ? name : `${name}.md`;
-    const path = `${VAULT_ROOT}/${filename}`;
     try {
-      await dbx.filesUpload({ path, contents: '', mode: 'add', autorename: true });
+      await dbx.filesUpload({ path: `${VAULT_ROOT}/${filename}`, contents: '', mode: 'add', autorename: true });
       await loadFileTree();
       showToast(`${filename} を作成しました`);
     } catch (e) {
@@ -821,31 +960,33 @@ newFolderBtn.addEventListener('click', () => {
 });
 
 // ── モーダル ──
-let modalCallback = null;
-
 function showModal(title, placeholder, callback) {
-  modalTitle.textContent    = title;
-  modalInput.placeholder    = placeholder;
-  modalInput.value          = '';
-  modalOverlay.hidden       = false;
-  modalCallback             = callback;
+  modalTitle.textContent = title;
+  modalInput.placeholder = placeholder;
+  modalInput.value       = '';
+  modalInput.hidden      = false;
+  modalOk.textContent    = '作成';
+  modalOk.className      = 'btn btn-primary';
+  modalOverlay.hidden    = false;
+  modalOk.onclick      = () => { const v = modalInput.value.trim(); closeModal(); if (callback) callback(v); };
+  modalCancel.onclick  = closeModal;
+  modalInput.onkeydown = (e) => {
+    if (e.key === 'Enter') modalOk.onclick();
+    if (e.key === 'Escape') closeModal();
+  };
   setTimeout(() => modalInput.focus(), 50);
 }
 
 function closeModal() {
-  modalOverlay.hidden = true;
-  modalCallback       = null;
+  modalOverlay.hidden  = true;
+  modalInput.hidden    = false;
+  modalOk.textContent  = '作成';
+  modalOk.className    = 'btn btn-primary';
+  modalOk.onclick      = null;
+  modalCancel.onclick  = null;
+  modalInput.onkeydown = null;
+  document.querySelectorAll('#modal-actions .extra-btn').forEach(b => b.remove());
 }
-
-modalCancel.addEventListener('click', closeModal);
-modalOk.addEventListener('click', () => {
-  if (modalCallback) modalCallback(modalInput.value.trim());
-  closeModal();
-});
-modalInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { modalOk.click(); }
-  if (e.key === 'Escape') { closeModal(); }
-});
 
 // ═══════════════════════════════════════════════
 // Phase 4: エディタ
@@ -919,28 +1060,20 @@ editor.addEventListener('input', () => {
 // ── 未保存変更の確認 ──
 async function confirmUnsaved() {
   return new Promise((resolve) => {
-    showModal('未保存の変更があります', '', null);
-    modalOk.textContent = '保存して切り替え';
-    modalOk.className   = 'btn btn-primary';
+    modalTitle.textContent = '未保存の変更があります';
+    modalInput.hidden      = true;
+    modalOk.textContent    = '保存して切り替え';
+    modalOk.className      = 'btn btn-primary';
+    modalOverlay.hidden    = false;
 
     const skipBtn = document.createElement('button');
     skipBtn.textContent = '保存せず切り替え';
-    skipBtn.className   = 'btn btn-danger';
+    skipBtn.className   = 'btn btn-danger extra-btn';
     modalOk.before(skipBtn);
 
-    const cleanup = () => {
-      skipBtn.remove();
-      modalOk.textContent = '作成';
-      closeModal();
-    };
-
-    skipBtn.addEventListener('click', () => { isDirty = false; cleanup(); resolve(true); });
-    modalOk.addEventListener('click', async () => {
-      await saveFile();
-      cleanup();
-      resolve(true);
-    }, { once: true });
-    modalCancel.addEventListener('click', () => { cleanup(); resolve(false); }, { once: true });
+    skipBtn.onclick     = () => { isDirty = false; closeModal(); resolve(true); };
+    modalOk.onclick     = async () => { closeModal(); await saveFile(); resolve(true); };
+    modalCancel.onclick = () => { closeModal(); resolve(false); };
   });
 }
 
