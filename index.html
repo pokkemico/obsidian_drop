@@ -16,19 +16,20 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #1e1e1e;
-      --bg-surface: #252525;
-      --bg-sidebar: #1a1a2e;
-      --border: #3a3a3a;
-      --text: #d4d4d4;
-      --text-muted: #888;
-      --accent: #7c3aed;
-      --accent-hover: #6d28d9;
-      --danger: #dc2626;
-      --header-h: 48px;
-      --toolbar-h: 40px;
-      --sidebar-w: 280px;
-      --toast-duration: 3s;
+      --bg:          #1e1e1e;
+      --bg-surface:  #252525;
+      --bg-sidebar:  #1e1e1e;
+      --border:      #333333;
+      --border-light:#2a2a2a;
+      --text:        #dcddde;
+      --text-muted:  #767676;
+      --text-faint:  #4a4a4a;
+      --accent:      #7b6cd8;
+      --accent-hover:#6a5bc7;
+      --accent-dim:  rgba(123,108,216,0.15);
+      --danger:      #e05252;
+      --header-h:    40px;
+      --sidebar-w:   260px;
     }
 
     html, body {
@@ -38,6 +39,7 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 14px;
       overflow: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
     /* ── 認証画面 ── */
@@ -84,9 +86,9 @@
     header {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
       height: var(--header-h);
-      padding: 0 12px;
+      padding: 0 8px;
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
@@ -95,20 +97,22 @@
     #menu-btn {
       background: none;
       border: none;
-      color: var(--text);
-      font-size: 20px;
+      color: var(--text-muted);
+      font-size: 18px;
       cursor: pointer;
-      padding: 4px 8px;
+      padding: 6px 8px;
       border-radius: 4px;
       line-height: 1;
+      flex-shrink: 0;
     }
 
-    #menu-btn:hover { background: var(--border); }
+    #menu-btn:hover { background: var(--border-light); color: var(--text); }
 
     #filename {
       flex: 1;
       font-size: 13px;
-      color: var(--text-muted);
+      font-weight: 500;
+      color: var(--text);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -117,8 +121,7 @@
     #save-status {
       font-size: 11px;
       color: var(--text-muted);
-      min-width: 48px;
-      text-align: right;
+      flex-shrink: 0;
     }
 
     /* ── オーバーレイ（ドロワー背景） ── */
@@ -142,7 +145,7 @@
       display: flex;
       flex-direction: column;
       transform: translateX(-100%);
-      transition: transform 0.25s ease;
+      transition: transform 0.2s ease;
     }
 
     #sidebar.open { transform: translateX(0); }
@@ -151,32 +154,30 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px;
+      padding: 10px 12px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
 
     #sidebar-header span {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       color: var(--text-muted);
-      letter-spacing: 0.08em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
     }
 
-    #sidebar-actions {
-      display: flex;
-      gap: 4px;
-    }
+    #sidebar-actions { display: flex; gap: 2px; }
 
     .icon-btn {
       background: none;
       border: none;
       color: var(--text-muted);
-      font-size: 16px;
+      font-size: 15px;
       cursor: pointer;
       padding: 4px 6px;
       border-radius: 4px;
+      line-height: 1;
     }
 
     .icon-btn:hover { background: var(--border); color: var(--text); }
@@ -184,30 +185,61 @@
     #file-tree {
       flex: 1;
       overflow-y: auto;
-      padding: 8px 0;
+      padding: 4px 0;
     }
+
+    /* スクロールバー */
+    #file-tree::-webkit-scrollbar { width: 4px; }
+    #file-tree::-webkit-scrollbar-track { background: transparent; }
+    #file-tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
     /* ファイルツリーアイテム */
     .tree-item {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
+      gap: 5px;
+      padding: 4px 8px 4px 0;
       cursor: pointer;
       border-radius: 4px;
       margin: 1px 4px;
       font-size: 13px;
       user-select: none;
+      -webkit-user-select: none;
+      color: var(--text);
     }
 
-    .tree-item:hover { background: var(--border); }
-    .tree-item.active { background: var(--accent); color: #fff; }
+    .tree-item:hover { background: var(--border-light); }
+    .tree-item.active { background: var(--accent-dim); color: var(--accent); }
+    .tree-item.active .tree-icon { color: var(--accent); }
 
-    .tree-item .icon { font-size: 12px; color: var(--text-muted); width: 14px; }
-    .tree-item.active .icon { color: rgba(255,255,255,0.7); }
-    .tree-item .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tree-arrow {
+      width: 16px;
+      text-align: center;
+      font-size: 9px;
+      color: var(--text-faint);
+      flex-shrink: 0;
+    }
 
-    .tree-children { padding-left: 16px; }
+    .tree-icon {
+      font-size: 14px;
+      width: 18px;
+      text-align: center;
+      flex-shrink: 0;
+      color: var(--text-muted);
+    }
+
+    .tree-icon.folder { color: #e8b84b; }
+    .tree-item.active .tree-icon.folder { color: var(--accent); }
+
+    .tree-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .tree-children { border-left: 1px solid var(--border-light); margin-left: 18px; }
 
     /* ── エディタエリア ── */
     main {
@@ -215,31 +247,8 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      position: relative;
     }
-
-    #toolbar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      height: var(--toolbar-h);
-      padding: 0 12px;
-      background: var(--bg-surface);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-
-    #toggle-preview {
-      padding: 4px 12px;
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 4px;
-      font-size: 12px;
-      cursor: pointer;
-    }
-
-    #toggle-preview:hover { border-color: var(--accent); color: var(--accent); }
-    #toggle-preview.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
     #editor {
       flex: 1;
@@ -247,13 +256,35 @@
       background: var(--bg);
       color: var(--text);
       border: none;
-      padding: 16px;
+      padding: 20px 24px;
       font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-      font-size: 14px;
-      line-height: 1.7;
+      font-size: 15px;
+      line-height: 1.8;
       resize: none;
       outline: none;
+      caret-color: var(--accent);
     }
+
+    /* プレビュー切り替えボタン（右上フローティング） */
+    #preview-btn {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1;
+      padding: 5px 7px;
+      cursor: pointer;
+      z-index: 2;
+      opacity: 0.6;
+      transition: opacity 0.15s, color 0.15s;
+    }
+
+    #preview-btn:hover      { opacity: 1; color: var(--text); }
+    #preview-btn.active     { opacity: 1; color: var(--accent); border-color: var(--accent); }
 
     #preview {
       flex: 1;
@@ -425,9 +456,7 @@
 
   <!-- エディタ -->
   <main>
-    <div id="toolbar">
-      <button id="toggle-preview">プレビュー</button>
-    </div>
+    <button id="preview-btn" title="プレビュー切り替え">◎</button>
     <textarea id="editor" placeholder="ファイルを選択してください" spellcheck="false"></textarea>
     <div id="preview" hidden></div>
   </main>
@@ -482,7 +511,7 @@ const filenameEl    = document.getElementById('filename');
 const saveStatusEl  = document.getElementById('save-status');
 const editor        = document.getElementById('editor');
 const preview       = document.getElementById('preview');
-const togglePreview = document.getElementById('toggle-preview');
+const previewBtn    = document.getElementById('preview-btn');
 const fileTree      = document.getElementById('file-tree');
 const newFileBtn    = document.getElementById('new-file-btn');
 const newFolderBtn  = document.getElementById('new-folder-btn');
@@ -732,7 +761,7 @@ function renderTree(parentPath, container, depth = 0) {
 
     if (item['.tag'] === 'folder') {
       const isOpen = openFolders.has(item.path_lower);
-      el.innerHTML = `<span class="icon">${isOpen ? '▾' : '▸'}</span><span class="label">${item.name}</span>`;
+      el.innerHTML = `<span class="tree-arrow">${isOpen ? '▾' : '▸'}</span><span class="tree-icon folder">📁</span><span class="tree-label">${item.name}</span>`;
 
       const childContainer = document.createElement('div');
       childContainer.className = 'tree-children';
@@ -745,7 +774,7 @@ function renderTree(parentPath, container, depth = 0) {
       container.appendChild(childContainer);
       if (isOpen) renderTree(item.path_lower, childContainer, depth + 1);
     } else {
-      el.innerHTML = `<span class="icon">📄</span><span class="label">${item.name}</span>`;
+      el.innerHTML = `<span class="tree-arrow"></span><span class="tree-icon">📝</span><span class="tree-label">${item.name.replace(/\.md$/, '')}</span>`;
       el.dataset.path = item.path_display;
       el.addEventListener('click', () => selectFile(item.path_display, el));
       addLongPress(el, () => showContextMenu(item, el));
@@ -757,12 +786,12 @@ function renderTree(parentPath, container, depth = 0) {
 function toggleFolder(path, el, childContainer, depth) {
   if (openFolders.has(path)) {
     openFolders.delete(path);
-    el.querySelector('.icon').textContent = '▸';
+    el.querySelector('.tree-arrow').textContent = '▸';
     childContainer.hidden    = true;
     childContainer.innerHTML = '';
   } else {
     openFolders.add(path);
-    el.querySelector('.icon').textContent = '▾';
+    el.querySelector('.tree-arrow').textContent = '▾';
     childContainer.hidden = false;
     renderTree(path, childContainer, depth + 1);
   }
@@ -1010,19 +1039,19 @@ function renderPreview() {
 }
 
 // ── 編集/プレビュー切り替え ──
-togglePreview.addEventListener('click', () => {
+previewBtn.addEventListener('click', () => {
   const isPreview = !preview.hidden;
   if (isPreview) {
-    preview.hidden  = true;
-    editor.hidden   = false;
-    togglePreview.classList.remove('active');
-    togglePreview.textContent = 'プレビュー';
+    preview.hidden = true;
+    editor.hidden  = false;
+    previewBtn.classList.remove('active');
+    previewBtn.title = 'プレビュー';
   } else {
     renderPreview();
-    editor.hidden   = true;
-    preview.hidden  = false;
-    togglePreview.classList.add('active');
-    togglePreview.textContent = '編集';
+    editor.hidden  = true;
+    preview.hidden = false;
+    previewBtn.classList.add('active');
+    previewBtn.title = '編集に戻る';
   }
 });
 
