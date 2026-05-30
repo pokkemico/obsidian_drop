@@ -12,24 +12,23 @@
   <script src="https://unpkg.com/dropbox/dist/Dropbox-sdk.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
-    /* ── リセット・変数 ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:          #1e1e1e;
-      --bg-surface:  #252525;
-      --bg-sidebar:  #1e1e1e;
-      --border:      #333333;
-      --border-light:#2a2a2a;
-      --text:        #dcddde;
-      --text-muted:  #767676;
-      --text-faint:  #4a4a4a;
-      --accent:      #7b6cd8;
-      --accent-hover:#6a5bc7;
-      --accent-dim:  rgba(123,108,216,0.15);
-      --danger:      #e05252;
-      --header-h:    40px;
-      --sidebar-w:   260px;
+      --bg:           #1e1e1e;
+      --bg-surface:   #252525;
+      --bg-sheet:     #202020;
+      --border:       #333333;
+      --border-light: #2a2a2a;
+      --text:         #dcddde;
+      --text-muted:   #767676;
+      --text-faint:   #4a4a4a;
+      --accent:       #7b6cd8;
+      --accent-hover: #6a5bc7;
+      --accent-dim:   rgba(123,108,216,0.15);
+      --danger:       #e05252;
+      --header-h:     44px;
+      --nav-h:        52px;
     }
 
     html, body {
@@ -51,17 +50,8 @@
       height: 100%;
       gap: 24px;
     }
-
-    #auth-screen h1 {
-      font-size: 24px;
-      color: var(--accent);
-    }
-
-    #auth-screen p {
-      color: var(--text-muted);
-      font-size: 13px;
-    }
-
+    #auth-screen h1 { font-size: 24px; color: var(--accent); }
+    #auth-screen p  { color: var(--text-muted); font-size: 13px; }
     #auth-btn {
       padding: 12px 32px;
       background: var(--accent);
@@ -70,9 +60,7 @@
       border-radius: 8px;
       font-size: 16px;
       cursor: pointer;
-      transition: background 0.2s;
     }
-
     #auth-btn:hover { background: var(--accent-hover); }
 
     /* ── メイン画面 ── */
@@ -86,27 +74,47 @@
     header {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 2px;
       height: var(--header-h);
-      padding: 0 8px;
+      padding: 0 6px;
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
 
-    #menu-btn {
+    .hdr-btn {
       background: none;
       border: none;
       color: var(--text-muted);
-      font-size: 18px;
       cursor: pointer;
       padding: 6px 8px;
-      border-radius: 4px;
+      border-radius: 6px;
       line-height: 1;
       flex-shrink: 0;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
+    .hdr-btn:hover  { background: var(--border-light); color: var(--text); }
+    .hdr-btn.active { color: var(--accent); }
 
-    #menu-btn:hover { background: var(--border-light); color: var(--text); }
+    /* パネルアイコン（CSS描画） */
+    #sidebar-toggle .panel-icon {
+      width: 18px;
+      height: 14px;
+      border: 1.5px solid currentColor;
+      border-radius: 2px;
+      display: flex;
+      overflow: hidden;
+      gap: 0;
+    }
+    #sidebar-toggle .panel-icon::before {
+      content: '';
+      width: 5px;
+      background: currentColor;
+      flex-shrink: 0;
+    }
 
     #filename {
       flex: 1;
@@ -116,130 +124,15 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      padding: 0 6px;
     }
 
     #save-status {
       font-size: 11px;
       color: var(--text-muted);
       flex-shrink: 0;
+      padding-right: 4px;
     }
-
-    /* ── オーバーレイ（ドロワー背景） ── */
-    #overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 10;
-    }
-
-    /* ── サイドバー（ドロワー） ── */
-    #sidebar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: var(--sidebar-w);
-      height: 100%;
-      background: var(--bg-sidebar);
-      border-right: 1px solid var(--border);
-      z-index: 20;
-      display: flex;
-      flex-direction: column;
-      transform: translateX(-100%);
-      transition: transform 0.2s ease;
-    }
-
-    #sidebar.open { transform: translateX(0); }
-
-    #sidebar-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 12px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-
-    #sidebar-header span {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-muted);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    #sidebar-actions { display: flex; gap: 2px; }
-
-    .icon-btn {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      font-size: 15px;
-      cursor: pointer;
-      padding: 4px 6px;
-      border-radius: 4px;
-      line-height: 1;
-    }
-
-    .icon-btn:hover { background: var(--border); color: var(--text); }
-
-    #file-tree {
-      flex: 1;
-      overflow-y: auto;
-      padding: 4px 0;
-    }
-
-    /* スクロールバー */
-    #file-tree::-webkit-scrollbar { width: 4px; }
-    #file-tree::-webkit-scrollbar-track { background: transparent; }
-    #file-tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-    /* ファイルツリーアイテム */
-    .tree-item {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      padding: 4px 8px 4px 0;
-      cursor: pointer;
-      border-radius: 4px;
-      margin: 1px 4px;
-      font-size: 13px;
-      user-select: none;
-      -webkit-user-select: none;
-      color: var(--text);
-    }
-
-    .tree-item:hover { background: var(--border-light); }
-    .tree-item.active { background: var(--accent-dim); color: var(--accent); }
-    .tree-item.active .tree-icon { color: var(--accent); }
-
-    .tree-arrow {
-      width: 16px;
-      text-align: center;
-      font-size: 9px;
-      color: var(--text-faint);
-      flex-shrink: 0;
-    }
-
-    .tree-icon {
-      font-size: 14px;
-      width: 18px;
-      text-align: center;
-      flex-shrink: 0;
-      color: var(--text-muted);
-    }
-
-    .tree-icon.folder { color: #e8b84b; }
-    .tree-item.active .tree-icon.folder { color: var(--accent); }
-
-    .tree-label {
-      flex: 1;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 13px;
-    }
-
-    .tree-children { border-left: 1px solid var(--border-light); margin-left: 18px; }
 
     /* ── エディタエリア ── */
     main {
@@ -265,27 +158,6 @@
       caret-color: var(--accent);
     }
 
-    /* プレビュー切り替えボタン（右上フローティング） */
-    #preview-btn {
-      position: absolute;
-      top: 10px;
-      right: 12px;
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text-muted);
-      font-size: 15px;
-      line-height: 1;
-      padding: 5px 7px;
-      cursor: pointer;
-      z-index: 2;
-      opacity: 0.6;
-      transition: opacity 0.15s, color 0.15s;
-    }
-
-    #preview-btn:hover      { opacity: 1; color: var(--text); }
-    #preview-btn.active     { opacity: 1; color: var(--accent); border-color: var(--accent); }
-
     #preview {
       flex: 1;
       padding: 16px 20px;
@@ -293,14 +165,13 @@
       line-height: 1.7;
     }
 
-    /* プレビューのMarkdownスタイル */
     #preview h1, #preview h2, #preview h3 { margin: 1.2em 0 0.6em; color: #e0e0e0; }
     #preview h1 { font-size: 1.6em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
     #preview h2 { font-size: 1.3em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
-    #preview p { margin: 0.8em 0; }
-    #preview a { color: var(--accent); }
+    #preview p  { margin: 0.8em 0; }
+    #preview a  { color: var(--accent); }
     #preview code { background: var(--bg-surface); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
-    #preview pre { background: var(--bg-surface); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 1em 0; }
+    #preview pre  { background: var(--bg-surface); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 1em 0; }
     #preview pre code { background: none; padding: 0; }
     #preview blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text-muted); margin: 1em 0; }
     #preview ul, #preview ol { padding-left: 1.5em; margin: 0.8em 0; }
@@ -310,7 +181,6 @@
     #preview th, #preview td { border: 1px solid var(--border); padding: 6px 12px; }
     #preview th { background: var(--bg-surface); }
 
-    /* WikiLink badge */
     .wikilink {
       display: inline-block;
       background: var(--bg-surface);
@@ -321,17 +191,220 @@
       color: var(--text-muted);
     }
 
+    /* ── ボトムナビ ── */
+    #bottom-nav {
+      display: flex;
+      align-items: center;
+      height: var(--nav-h);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .nav-btn {
+      flex: 1;
+      height: 100%;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 17px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: color 0.1s;
+    }
+    .nav-btn:hover  { color: var(--text); }
+    .nav-btn:active { background: var(--border-light); }
+    .nav-btn:disabled { color: var(--text-faint); pointer-events: none; }
+    .nav-btn.active { color: var(--accent); }
+
+    /* タブカウントボタン */
+    #nav-tabs .tab-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      border: 1.5px solid currentColor;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 0 3px;
+    }
+
+    /* ── シートオーバーレイ ── */
+    #sheet-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 10;
+    }
+
+    /* ── ボトムシート ── */
+    #bottom-sheet {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 72vh;
+      max-height: calc(100% - 56px);
+      background: var(--bg-sheet);
+      border-top: 1px solid var(--border);
+      border-radius: 14px 14px 0 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    }
+    #bottom-sheet.open { transform: translateY(0); }
+
+    /* ドラッグハンドル */
+    #sheet-handle {
+      width: 36px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 10px auto 4px;
+      flex-shrink: 0;
+    }
+
+    /* シートツールバー */
+    #sheet-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 4px 8px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .sheet-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 19px;
+      cursor: pointer;
+      padding: 8px 12px;
+      border-radius: 8px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .sheet-btn:hover  { background: var(--border-light); color: var(--text); }
+    .sheet-btn:active { background: var(--border); }
+
+    /* セクションヘッダー */
+    #sheet-section {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-light);
+      flex-shrink: 0;
+    }
+    #sheet-section .sec-label {
+      flex: 1;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    #sheet-section .sec-chevron { font-size: 12px; color: var(--text-faint); }
+
+    /* Vaultヘッダー */
+    #sheet-vault {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #vault-info-wrap { flex: 1; }
+    #vault-name { font-size: 14px; font-weight: 700; color: var(--text); }
+    #vault-count { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    #settings-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 17px;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    #settings-btn:hover { color: var(--text); }
+
+    /* ファイルツリー */
+    #file-tree {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+    #file-tree::-webkit-scrollbar { width: 4px; }
+    #file-tree::-webkit-scrollbar-track { background: transparent; }
+    #file-tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 8px 5px 0;
+      cursor: pointer;
+      border-radius: 4px;
+      margin: 1px 4px;
+      font-size: 13px;
+      user-select: none;
+      -webkit-user-select: none;
+      color: var(--text);
+    }
+    .tree-item:hover  { background: var(--border-light); }
+    .tree-item.active { background: var(--accent-dim); color: var(--accent); }
+    .tree-item.active .tree-icon { color: var(--accent); }
+
+    .tree-arrow {
+      width: 16px;
+      text-align: center;
+      font-size: 9px;
+      color: var(--text-faint);
+      flex-shrink: 0;
+    }
+    .tree-icon {
+      font-size: 14px;
+      width: 18px;
+      text-align: center;
+      flex-shrink: 0;
+      color: var(--text-muted);
+    }
+    .tree-icon.folder { color: #e8b84b; }
+    .tree-item.active .tree-icon.folder { color: var(--accent); }
+
+    .tree-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+    .tree-children { border-left: 1px solid var(--border-light); margin-left: 18px; }
+
     /* ── モーダル ── */
     #modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(0,0,0,0.6);
       z-index: 30;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-
     #modal {
       background: var(--bg-surface);
       border: 1px solid var(--border);
@@ -342,9 +415,7 @@
       flex-direction: column;
       gap: 12px;
     }
-
     #modal h3 { font-size: 14px; }
-
     #modal input {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -355,32 +426,19 @@
       outline: none;
       width: 100%;
     }
-
     #modal input:focus { border-color: var(--accent); }
+    #modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
-    #modal-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
-
-    .btn {
-      padding: 6px 16px;
-      border-radius: 4px;
-      border: none;
-      font-size: 13px;
-      cursor: pointer;
-    }
-
-    .btn-primary { background: var(--accent); color: #fff; }
+    .btn { padding: 6px 16px; border-radius: 4px; border: none; font-size: 13px; cursor: pointer; }
+    .btn-primary   { background: var(--accent); color: #fff; }
     .btn-primary:hover { background: var(--accent-hover); }
     .btn-secondary { background: var(--border); color: var(--text); }
-    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger    { background: var(--danger); color: #fff; }
 
     /* ── トースト通知 ── */
     #toast {
       position: fixed;
-      bottom: 24px;
+      bottom: calc(var(--nav-h) + 12px);
       left: 50%;
       transform: translateX(-50%) translateY(80px);
       background: #333;
@@ -392,8 +450,7 @@
       transition: transform 0.3s ease;
       white-space: nowrap;
     }
-
-    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.show  { transform: translateX(-50%) translateY(0); }
     #toast.error { background: var(--danger); }
 
     /* ── コンテキストメニュー ── */
@@ -407,17 +464,10 @@
       min-width: 140px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.5);
     }
-
-    .context-item {
-      padding: 10px 16px;
-      cursor: pointer;
-      font-size: 13px;
-    }
-
+    .context-item { padding: 10px 16px; cursor: pointer; font-size: 13px; }
     .context-item:hover { background: var(--border); }
     .context-item.danger { color: var(--danger); }
 
-    /* ── ユーティリティ ── */
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -434,43 +484,70 @@
 <div id="main-screen" hidden>
 
   <header>
-    <button id="menu-btn" aria-label="メニューを開く">☰</button>
+    <button id="sidebar-toggle" class="hdr-btn" aria-label="ファイルツリー">
+      <span class="panel-icon"></span>
+    </button>
     <span id="filename">ファイルを選択してください</span>
     <span id="save-status"></span>
+    <button id="preview-btn" class="hdr-btn" title="プレビュー切り替え">◎</button>
+    <button id="more-btn" class="hdr-btn" title="その他">⋮</button>
   </header>
 
-  <!-- ドロワーオーバーレイ -->
-  <div id="overlay" hidden></div>
-
-  <!-- サイドバー -->
-  <aside id="sidebar" aria-label="ファイルツリー">
-    <div id="sidebar-header">
-      <span>Obsidian Vault</span>
-      <div id="sidebar-actions">
-        <button class="icon-btn" id="new-file-btn" title="新規ファイル">＋📄</button>
-        <button class="icon-btn" id="new-folder-btn" title="新規フォルダ">＋📁</button>
-      </div>
-    </div>
-    <div id="file-tree"></div>
-  </aside>
-
-  <!-- エディタ -->
   <main>
-    <button id="preview-btn" title="プレビュー切り替え">◎</button>
     <textarea id="editor" placeholder="ファイルを選択してください" spellcheck="false"></textarea>
     <div id="preview" hidden></div>
   </main>
 
+  <nav id="bottom-nav">
+    <button class="nav-btn" id="nav-back"    title="戻る" disabled>‹</button>
+    <button class="nav-btn" id="nav-forward" title="進む" disabled>›</button>
+    <button class="nav-btn" id="nav-search"  title="検索">⌕</button>
+    <button class="nav-btn" id="nav-new"     title="新規ファイル">＋</button>
+    <button class="nav-btn" id="nav-tabs"    title="開いているファイル"><span class="tab-badge">1</span></button>
+    <button class="nav-btn" id="nav-menu"    title="ファイルツリー">≡</button>
+  </nav>
+
 </div>
 
-<!-- モーダル（新規作成・削除確認） -->
+<!-- シートオーバーレイ -->
+<div id="sheet-overlay" hidden></div>
+
+<!-- ボトムシート（ファイルエクスプローラー） -->
+<div id="bottom-sheet" aria-label="ファイルエクスプローラー">
+  <div id="sheet-handle"></div>
+
+  <div id="sheet-toolbar">
+    <button class="sheet-btn" id="new-file-btn"   title="新規ファイル">✏</button>
+    <button class="sheet-btn" id="new-folder-btn"  title="新規フォルダ">📁</button>
+    <button class="sheet-btn" id="sort-btn"        title="並び替え">↕</button>
+    <button class="sheet-btn" id="layout-btn"      title="表示切替">⊞</button>
+    <button class="sheet-btn" id="collapse-all-btn" title="すべて折りたたむ">⇅</button>
+  </div>
+
+  <div id="sheet-section">
+    <span class="sec-label">📁 ファイルエクスプローラー</span>
+    <span class="sec-chevron">◊</span>
+  </div>
+
+  <div id="sheet-vault">
+    <div id="vault-info-wrap">
+      <div id="vault-name">Obsidian_Vault</div>
+      <div id="vault-count">読み込み中…</div>
+    </div>
+    <button id="settings-btn" title="設定">⚙</button>
+  </div>
+
+  <div id="file-tree"></div>
+</div>
+
+<!-- モーダル -->
 <div id="modal-overlay" hidden>
   <div id="modal">
     <h3 id="modal-title"></h3>
     <input id="modal-input" type="text" autocomplete="off">
     <div id="modal-actions">
       <button class="btn btn-secondary" id="modal-cancel">キャンセル</button>
-      <button class="btn btn-primary" id="modal-ok">作成</button>
+      <button class="btn btn-primary"   id="modal-ok">作成</button>
     </div>
   </div>
 </div>
@@ -478,15 +555,15 @@
 <!-- コンテキストメニュー -->
 <div id="context-menu" hidden></div>
 
-<!-- トースト通知 -->
+<!-- トースト -->
 <div id="toast"></div>
 
 <script>
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════
 // 定数
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════
 
-const CLIENT_ID   = 'yzgitq8dckav2q8';
+const CLIENT_ID    = 'yzgitq8dckav2q8';
 const REDIRECT_URI = 'https://pokkemico.github.io/obsidian_drop/';
 const VAULT_ROOT   = '/Obsidian_Vault';
 
@@ -497,43 +574,47 @@ const KEYS = {
   CODE_VERIFIER: 'dbx_code_verifier',
 };
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════
 // DOM
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════
 
-const authScreen    = document.getElementById('auth-screen');
-const mainScreen    = document.getElementById('main-screen');
-const authBtn       = document.getElementById('auth-btn');
-const menuBtn       = document.getElementById('menu-btn');
-const overlay       = document.getElementById('overlay');
-const sidebar       = document.getElementById('sidebar');
-const filenameEl    = document.getElementById('filename');
-const saveStatusEl  = document.getElementById('save-status');
-const editor        = document.getElementById('editor');
-const preview       = document.getElementById('preview');
-const previewBtn    = document.getElementById('preview-btn');
-const fileTree      = document.getElementById('file-tree');
-const newFileBtn    = document.getElementById('new-file-btn');
-const newFolderBtn  = document.getElementById('new-folder-btn');
-const modalOverlay  = document.getElementById('modal-overlay');
-const modalTitle    = document.getElementById('modal-title');
-const modalInput    = document.getElementById('modal-input');
-const modalCancel   = document.getElementById('modal-cancel');
-const modalOk       = document.getElementById('modal-ok');
-const toastEl       = document.getElementById('toast');
+const authScreen     = document.getElementById('auth-screen');
+const mainScreen     = document.getElementById('main-screen');
+const authBtn        = document.getElementById('auth-btn');
+const sidebarToggle  = document.getElementById('sidebar-toggle');
+const sheetOverlay   = document.getElementById('sheet-overlay');
+const bottomSheet    = document.getElementById('bottom-sheet');
+const filenameEl     = document.getElementById('filename');
+const saveStatusEl   = document.getElementById('save-status');
+const editor         = document.getElementById('editor');
+const preview        = document.getElementById('preview');
+const previewBtn     = document.getElementById('preview-btn');
+const fileTree       = document.getElementById('file-tree');
+const newFileBtn     = document.getElementById('new-file-btn');
+const newFolderBtn   = document.getElementById('new-folder-btn');
+const collapseAllBtn = document.getElementById('collapse-all-btn');
+const vaultCount     = document.getElementById('vault-count');
+const navBackBtn     = document.getElementById('nav-back');
+const navForwardBtn  = document.getElementById('nav-forward');
+const navMenuBtn     = document.getElementById('nav-menu');
+const navNewBtn      = document.getElementById('nav-new');
+const navTabsBtn     = document.getElementById('nav-tabs');
+const modalOverlay   = document.getElementById('modal-overlay');
+const modalTitle     = document.getElementById('modal-title');
+const modalInput     = document.getElementById('modal-input');
+const modalCancel    = document.getElementById('modal-cancel');
+const modalOk        = document.getElementById('modal-ok');
+const toastEl        = document.getElementById('toast');
 
-// ── Dropboxクライアント ──
 let dbx = null;
 
-// ═══════════════════════════════════════════════
-// Phase 2: 認証
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════
+// 認証
+// ═══════════════════════════════════════════
 
-// ── トークン管理 ──
 function saveTokens(accessToken, refreshToken, expiresIn) {
   localStorage.setItem(KEYS.ACCESS_TOKEN, accessToken);
   if (refreshToken) localStorage.setItem(KEYS.REFRESH_TOKEN, refreshToken);
-  // 1分早めに失効扱いにしてリフレッシュを先行させる
   const expiresAt = Date.now() + (expiresIn - 60) * 1000;
   localStorage.setItem(KEYS.EXPIRES_AT, String(expiresAt));
 }
@@ -554,7 +635,6 @@ function isTokenFresh(tokens) {
   return tokens.accessToken && Date.now() < tokens.expiresAt;
 }
 
-// ── アクセストークン更新 ──
 async function refreshAccessToken(refreshToken) {
   const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
     method: 'POST',
@@ -571,7 +651,6 @@ async function refreshAccessToken(refreshToken) {
   return data.access_token;
 }
 
-// ── 有効なアクセストークンを取得（期限切れなら自動リフレッシュ） ──
 async function getValidAccessToken() {
   const tokens = loadTokens();
   if (!tokens.accessToken) throw new Error('未認証');
@@ -580,7 +659,6 @@ async function getValidAccessToken() {
   throw new Error('再認証が必要です');
 }
 
-// ── PKCE ヘルパー ──
 function generateCodeVerifier() {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
@@ -589,18 +667,16 @@ function generateCodeVerifier() {
 }
 
 async function generateCodeChallenge(verifier) {
-  const data = new TextEncoder().encode(verifier);
+  const data   = new TextEncoder().encode(verifier);
   const digest = await crypto.subtle.digest('SHA-256', data);
   return btoa(String.fromCharCode(...new Uint8Array(digest)))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-// ── 認証開始（Dropboxへリダイレクト） ──
 async function startAuth() {
-  const verifier   = generateCodeVerifier();
-  const challenge  = await generateCodeChallenge(verifier);
+  const verifier  = generateCodeVerifier();
+  const challenge = await generateCodeChallenge(verifier);
   localStorage.setItem(KEYS.CODE_VERIFIER, verifier);
-
   const params = new URLSearchParams({
     client_id:             CLIENT_ID,
     response_type:         'code',
@@ -612,11 +688,9 @@ async function startAuth() {
   window.location.href = `https://www.dropbox.com/oauth2/authorize?${params}`;
 }
 
-// ── コールバック処理（code → token） ──
 async function handleCallback(code) {
   const verifier = localStorage.getItem(KEYS.CODE_VERIFIER);
   if (!verifier) throw new Error('認証セッションが無効です。再度ログインしてください');
-
   const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -636,28 +710,21 @@ async function handleCallback(code) {
   return data.access_token;
 }
 
-// ── Dropboxクライアント生成 ──
 function createDbxClient(accessToken) {
   dbx = new Dropbox.Dropbox({ accessToken });
 }
 
-// ── 画面切り替え ──
-function showAuthScreen() {
-  authScreen.hidden = false;
-  mainScreen.hidden = true;
-}
-
-function showMainScreen() {
+function showAuthScreen() { authScreen.hidden = false; mainScreen.hidden = true; }
+function showMainScreen()  {
   authScreen.hidden = true;
   mainScreen.hidden = false;
   loadFileTree();
+  openSheet();
 }
 
-// ── 起動処理 ──
 async function boot() {
   const params = new URLSearchParams(window.location.search);
   const code   = params.get('code');
-
   if (code) {
     try {
       const accessToken = await handleCallback(code);
@@ -669,7 +736,6 @@ async function boot() {
     }
     return;
   }
-
   const tokens = loadTokens();
   if (tokens.accessToken) {
     try {
@@ -682,37 +748,82 @@ async function boot() {
     }
     return;
   }
-
   showAuthScreen();
 }
 
 authBtn.addEventListener('click', startAuth);
 
-// ═══════════════════════════════════════════════
-// Phase 3: サイドバー（ファイルツリー）
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════
+// ボトムシート開閉
+// ═══════════════════════════════════════════
 
-// ── ドロワー開閉 ──
-let sidebarJustOpened = false;
+let sheetJustOpened = false;
 
-function openSidebar() {
-  sidebar.classList.add('open');
-  overlay.hidden = false;
-  sidebarJustOpened = true;
-  setTimeout(() => { sidebarJustOpened = false; }, 300);
+function openSheet() {
+  bottomSheet.classList.add('open');
+  sheetOverlay.hidden = false;
+  sheetJustOpened = true;
+  setTimeout(() => { sheetJustOpened = false; }, 300);
 }
 
-function closeSidebar() {
-  sidebar.classList.remove('open');
-  overlay.hidden = true;
+function closeSheet() {
+  bottomSheet.classList.remove('open');
+  sheetOverlay.hidden = true;
 }
 
-menuBtn.addEventListener('click', openSidebar);
-overlay.addEventListener('click', () => {
-  if (!sidebarJustOpened) closeSidebar();
+sidebarToggle.addEventListener('click', openSheet);
+navMenuBtn.addEventListener('click', openSheet);
+navTabsBtn.addEventListener('click', openSheet);
+sheetOverlay.addEventListener('click', () => {
+  if (!sheetJustOpened) closeSheet();
 });
 
-// ── Dropbox からフォルダ以下を全件取得（再帰） ──
+// ═══════════════════════════════════════════
+// ナビゲーション履歴
+// ═══════════════════════════════════════════
+
+let navHistory = [];
+let navIndex   = -1;
+
+function pushNav(path) {
+  navHistory = navHistory.slice(0, navIndex + 1);
+  navHistory.push(path);
+  navIndex = navHistory.length - 1;
+  updateNavBtns();
+}
+
+function updateNavBtns() {
+  navBackBtn.disabled    = navIndex <= 0;
+  navForwardBtn.disabled = navIndex >= navHistory.length - 1;
+}
+
+navBackBtn.addEventListener('click', async () => {
+  if (navIndex > 0) {
+    navIndex--;
+    await loadFileAtPath(navHistory[navIndex]);
+    updateNavBtns();
+  }
+});
+
+navForwardBtn.addEventListener('click', async () => {
+  if (navIndex < navHistory.length - 1) {
+    navIndex++;
+    await loadFileAtPath(navHistory[navIndex]);
+    updateNavBtns();
+  }
+});
+
+navNewBtn.addEventListener('click', () => {
+  openSheet();
+  setTimeout(() => newFileBtn.click(), 300);
+});
+
+document.getElementById('nav-search').addEventListener('click', openSheet);
+
+// ═══════════════════════════════════════════
+// ファイルツリー
+// ═══════════════════════════════════════════
+
 async function listAllEntries(path) {
   const entries = [];
   let res = await dbx.filesListFolder({ path, recursive: true });
@@ -724,11 +835,9 @@ async function listAllEntries(path) {
   return entries;
 }
 
-// ── ツリーデータ構造を構築 ──
 function buildTree(entries) {
   const vaultKey = VAULT_ROOT.toLowerCase();
   const children = { [vaultKey]: [] };
-
   for (const e of entries) {
     if (e.name.startsWith('.')) continue;
     const parent = e.path_lower.substring(0, e.path_lower.lastIndexOf('/'));
@@ -743,7 +852,6 @@ function buildTree(entries) {
   return children;
 }
 
-// ── ツリーをDOMに描画 ──
 let treeData    = {};
 let openFolders = new Set();
 
@@ -762,14 +870,11 @@ function renderTree(parentPath, container, depth = 0) {
     if (item['.tag'] === 'folder') {
       const isOpen = openFolders.has(item.path_lower);
       el.innerHTML = `<span class="tree-arrow">${isOpen ? '▾' : '▸'}</span><span class="tree-icon folder">📁</span><span class="tree-label">${item.name}</span>`;
-
       const childContainer = document.createElement('div');
       childContainer.className = 'tree-children';
       childContainer.hidden    = !isOpen;
-
       el.addEventListener('click', () => toggleFolder(item.path_lower, el, childContainer, depth));
       addLongPress(el, () => showContextMenu(item, el));
-
       container.appendChild(el);
       container.appendChild(childContainer);
       if (isOpen) renderTree(item.path_lower, childContainer, depth + 1);
@@ -797,25 +902,38 @@ function toggleFolder(path, el, childContainer, depth) {
   }
 }
 
-// ── ファイルツリー読み込み ──
 async function loadFileTree() {
   fileTree.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:12px">読み込み中…</div>';
+  vaultCount.textContent = '読み込み中…';
   try {
     const entries = await listAllEntries(VAULT_ROOT);
     treeData = buildTree(entries);
     fileTree.innerHTML = '';
     renderTree(VAULT_ROOT.toLowerCase(), fileTree);
+    const fileCount   = entries.filter(e => e['.tag'] === 'file' && e.name.endsWith('.md')).length;
+    const folderCount = entries.filter(e => e['.tag'] === 'folder').length;
+    vaultCount.textContent = `${fileCount} ファイル, ${folderCount} フォルダ`;
   } catch (e) {
     fileTree.innerHTML = `<div style="padding:12px;color:var(--danger);font-size:12px">${e.message}</div>`;
+    vaultCount.textContent = '';
   }
 }
 
-// ── ファイル選択 ──
+collapseAllBtn.addEventListener('click', () => {
+  openFolders.clear();
+  fileTree.innerHTML = '';
+  renderTree(VAULT_ROOT.toLowerCase(), fileTree);
+});
+
+// ═══════════════════════════════════════════
+// ファイル選択・読み込み
+// ═══════════════════════════════════════════
+
 let currentPath = null;
 let currentEl   = null;
 
 async function selectFile(path, el) {
-  if (currentPath === path) { closeSidebar(); return; }
+  if (currentPath === path) { closeSheet(); return; }
   if (isDirty) {
     const ok = await confirmUnsaved();
     if (!ok) return;
@@ -824,9 +942,26 @@ async function selectFile(path, el) {
   el.classList.add('active');
   currentEl   = el;
   currentPath = path;
-  filenameEl.textContent = path.split('/').pop();
-  closeSidebar();
+  filenameEl.textContent = path.split('/').pop().replace(/\.md$/, '');
+  closeSheet();
+  pushNav(path);
+  await loadFileContent(path);
+}
 
+async function loadFileAtPath(path) {
+  const allEls = fileTree.querySelectorAll('[data-path]');
+  let targetEl = null;
+  for (const el of allEls) {
+    if (el.dataset.path === path) { targetEl = el; break; }
+  }
+  if (currentEl) currentEl.classList.remove('active');
+  if (targetEl)  { targetEl.classList.add('active'); currentEl = targetEl; }
+  currentPath = path;
+  filenameEl.textContent = path.split('/').pop().replace(/\.md$/, '');
+  await loadFileContent(path);
+}
+
+async function loadFileContent(path) {
   editor.value       = '';
   editor.placeholder = '読み込み中…';
   try {
@@ -861,13 +996,11 @@ function showContextMenu(item, anchorEl) {
   const rect = anchorEl.getBoundingClientRect();
   contextMenu.innerHTML = '';
   contextMenu.hidden    = false;
-
   const actions = [
     { label: '名前を変更', fn: () => renameItem(item) },
     ...(item['.tag'] === 'file' ? [{ label: '移動', fn: () => moveItem(item) }] : []),
     { label: '削除', fn: () => deleteItem(item), danger: true },
   ];
-
   for (const action of actions) {
     const btn = document.createElement('div');
     btn.className   = 'context-item' + (action.danger ? ' danger' : '');
@@ -875,7 +1008,6 @@ function showContextMenu(item, anchorEl) {
     btn.addEventListener('click', () => { hideContextMenu(); action.fn(); });
     contextMenu.appendChild(btn);
   }
-
   const top  = Math.min(rect.bottom + 4, window.innerHeight - 100);
   const left = Math.min(rect.left, window.innerWidth - 160);
   contextMenu.style.top  = `${Math.max(top, 8)}px`;
@@ -883,7 +1015,6 @@ function showContextMenu(item, anchorEl) {
 }
 
 function hideContextMenu() { contextMenu.hidden = true; }
-
 document.addEventListener('click', hideContextMenu);
 document.addEventListener('touchstart', (e) => {
   if (!contextMenu.contains(e.target)) hideContextMenu();
@@ -901,7 +1032,7 @@ async function renameItem(item) {
       await dbx.filesMoveV2({ from_path: item.path_display, to_path: newPath, autorename: true });
       if (currentPath === item.path_display) {
         currentPath = newPath;
-        filenameEl.textContent = newFilename;
+        filenameEl.textContent = newFilename.replace(/\.md$/, '');
       }
       await loadFileTree();
       showToast('名前を変更しました');
@@ -924,7 +1055,7 @@ async function moveItem(item) {
       await dbx.filesMoveV2({ from_path: item.path_display, to_path: newPath, autorename: true });
       if (currentPath === item.path_display) {
         currentPath = newPath;
-        filenameEl.textContent = item.name;
+        filenameEl.textContent = item.name.replace(/\.md$/, '');
       }
       await loadFileTree();
       showToast('移動しました');
@@ -959,7 +1090,7 @@ async function deleteItem(item) {
   modalCancel.onclick = closeModal;
 }
 
-// ── 新規ファイル作成 ──
+// ── 新規ファイル ──
 newFileBtn.addEventListener('click', () => {
   showModal('新規ファイル', 'ファイル名', async (name) => {
     if (!name) return;
@@ -974,7 +1105,7 @@ newFileBtn.addEventListener('click', () => {
   });
 });
 
-// ── 新規フォルダ作成 ──
+// ── 新規フォルダ ──
 newFolderBtn.addEventListener('click', () => {
   showModal('新規フォルダ', 'フォルダ名', async (name) => {
     if (!name) return;
@@ -988,6 +1119,10 @@ newFolderBtn.addEventListener('click', () => {
   });
 });
 
+// ── 並び替え・レイアウト（将来用） ──
+document.getElementById('sort-btn').addEventListener('click', () => showToast('並び替え：準備中'));
+document.getElementById('layout-btn').addEventListener('click', () => showToast('表示切替：準備中'));
+
 // ── モーダル ──
 function showModal(title, placeholder, callback) {
   modalTitle.textContent = title;
@@ -1000,7 +1135,7 @@ function showModal(title, placeholder, callback) {
   modalOk.onclick      = () => { const v = modalInput.value.trim(); closeModal(); if (callback) callback(v); };
   modalCancel.onclick  = closeModal;
   modalInput.onkeydown = (e) => {
-    if (e.key === 'Enter') modalOk.onclick();
+    if (e.key === 'Enter')  modalOk.onclick();
     if (e.key === 'Escape') closeModal();
   };
   setTimeout(() => modalInput.focus(), 50);
@@ -1017,11 +1152,10 @@ function closeModal() {
   document.querySelectorAll('#modal-actions .extra-btn').forEach(b => b.remove());
 }
 
-// ═══════════════════════════════════════════════
-// Phase 4: エディタ
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════
+// エディタ
+// ═══════════════════════════════════════════
 
-// ── プレビュー（WikiLink badge対応） ──
 const wikilinkRenderer = {
   name: 'wikilink',
   level: 'inline',
@@ -1038,7 +1172,6 @@ function renderPreview() {
   preview.innerHTML = marked.parse(editor.value);
 }
 
-// ── 編集/プレビュー切り替え ──
 previewBtn.addEventListener('click', () => {
   const isPreview = !preview.hidden;
   if (isPreview) {
@@ -1055,9 +1188,8 @@ previewBtn.addEventListener('click', () => {
   }
 });
 
-// ── 自動保存（2秒debounce） ──
-let isDirty    = false;
-let saveTimer  = null;
+let isDirty   = false;
+let saveTimer = null;
 
 async function saveFile() {
   if (!currentPath || !isDirty) return;
@@ -1086,7 +1218,6 @@ editor.addEventListener('input', () => {
   saveTimer = setTimeout(saveFile, 2000);
 });
 
-// ── 未保存変更の確認 ──
 async function confirmUnsaved() {
   return new Promise((resolve) => {
     modalTitle.textContent = '未保存の変更があります';
@@ -1106,12 +1237,11 @@ async function confirmUnsaved() {
   });
 }
 
-// ── ページ離脱警告 ──
 window.addEventListener('beforeunload', (e) => {
   if (isDirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
-// ── トースト通知 ──
+// ── トースト ──
 let toastTimer = null;
 function showToast(message, isError = false) {
   toastEl.textContent = message;
@@ -1120,14 +1250,12 @@ function showToast(message, isError = false) {
   toastTimer = setTimeout(() => { toastEl.className = ''; }, 3000);
 }
 
-// ── Service Worker 登録 ──
+// ── Service Worker ──
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js');
 }
 
-// ── 起動 ──
 boot();
 </script>
-
 </body>
 </html>
