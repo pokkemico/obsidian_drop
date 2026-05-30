@@ -1,4 +1,4 @@
-const CACHE_NAME = 'obsidian-drop-v1';
+const CACHE_NAME = 'obsidian-drop-v2';
 const STATIC_ASSETS = [
   '/obsidian_drop/',
   '/obsidian_drop/index.html',
