@@ -165,7 +165,7 @@
       line-height: 1.7;
     }
 
-    #preview h1, #preview h2, #preview h3 { margin: 1.2em 0 0.6em; color: #e0e0e0; }
+    #preview h1, #preview h2, #preview h3 { margin: 1.2em 0 0.6em; color: var(--text); }
     #preview h1 { font-size: 1.6em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
     #preview h2 { font-size: 1.3em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
     #preview p  { margin: 0.8em 0; }
@@ -970,7 +970,11 @@ async function loadFileContent(path) {
     const text = await res.result.fileBlob.text();
     editor.value       = text;
     editor.placeholder = '';
-    if (!preview.hidden) renderPreview();
+    renderPreview();
+    editor.hidden  = true;
+    preview.hidden = false;
+    previewBtn.classList.add('active');
+    previewBtn.title = '編集に戻る';
   } catch (e) {
     showToast('ファイルの読み込みに失敗しました', true);
   }
