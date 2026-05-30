@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Obsidian Drop</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#7c3aed">
+  <meta name="theme-color" content="#f5f5f5">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -15,18 +15,18 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:           #1e1e1e;
-      --bg-surface:   #252525;
-      --bg-sheet:     #202020;
-      --border:       #333333;
-      --border-light: #2a2a2a;
-      --text:         #dcddde;
-      --text-muted:   #767676;
-      --text-faint:   #4a4a4a;
+      --bg:           #ffffff;
+      --bg-surface:   #f5f5f5;
+      --bg-sheet:     #f0f0f0;
+      --border:       #e0e0e0;
+      --border-light: #ebebeb;
+      --text:         #1a1a1a;
+      --text-muted:   #7a7a7a;
+      --text-faint:   #c0c0c0;
       --accent:       #7b6cd8;
       --accent-hover: #6a5bc7;
-      --accent-dim:   rgba(123,108,216,0.15);
-      --danger:       #e05252;
+      --accent-dim:   rgba(123,108,216,0.10);
+      --danger:       #d94a4a;
       --header-h:     44px;
       --nav-h:        52px;
     }
@@ -383,7 +383,7 @@
       flex-shrink: 0;
       color: var(--text-muted);
     }
-    .tree-icon.folder { color: #e8b84b; }
+    .tree-icon.folder { color: #c49a2a; }
     .tree-item.active .tree-icon.folder { color: var(--accent); }
 
     .tree-label {
@@ -441,7 +441,7 @@
       bottom: calc(var(--nav-h) + 12px);
       left: 50%;
       transform: translateX(-50%) translateY(80px);
-      background: #333;
+      background: #444;
       color: var(--text);
       padding: 10px 20px;
       border-radius: 6px;
@@ -859,7 +859,8 @@ function renderTree(parentPath, container, depth = 0) {
   const items = treeData[parentPath] || [];
   items.sort((a, b) => {
     if (a['.tag'] !== b['.tag']) return a['.tag'] === 'folder' ? -1 : 1;
-    return a.name.localeCompare(b.name, 'ja');
+    if (a['.tag'] === 'folder') return a.name.localeCompare(b.name, 'ja');
+    return new Date(b.server_modified || 0) - new Date(a.server_modified || 0);
   });
 
   for (const item of items) {
